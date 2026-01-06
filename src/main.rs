@@ -10,7 +10,7 @@ use zip::ZipArchive;
 mod ui;
 
 #[derive(Parser)]
-#[command(name = "make-gitignore")]
+#[command(name = "gitignore")]
 #[command(about = "Generate .gitignore files from templates", long_about = None)]
 struct Cli {
     /// Comma-separated list of languages (e.g., --languages=Rust,Python,Node)
