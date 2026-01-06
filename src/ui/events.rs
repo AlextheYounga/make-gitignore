@@ -38,36 +38,33 @@ fn run_app(
     loop {
         terminal.draw(|f| ui(f, app))?;
 
-        if let Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press {
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => {
-                        return Ok(None);
-                    }
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        app.move_cursor_up();
-                    }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        app.move_cursor_down();
-                    }
-                    KeyCode::Char(' ') => {
-                        app.toggle_selection();
-                    }
-                    KeyCode::Enter => {
-                        let selected = app.get_selected_languages();
-                        return Ok(Some(selected));
-                    }
-                    KeyCode::Backspace => {
-                        app.backspace_search();
-                    }
-                    KeyCode::Char(c) => {
-                        if !c.is_control() {
-                            app.add_to_search(c);
-                        }
-                    }
-                    _ => {}
+        match event::read()? {
+            Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                KeyCode::Char('q') | KeyCode::Esc => {
+                    return Ok(None);
                 }
-            }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    app.move_cursor_up();
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    app.move_cursor_down();
+                }
+                KeyCode::Char(' ') => {
+                    app.toggle_selection();
+                }
+                KeyCode::Enter => {
+                    let selected = app.get_selected_languages();
+                    return Ok(Some(selected));
+                }
+                KeyCode::Backspace => {
+                    app.backspace_search();
+                }
+                KeyCode::Char(c) if !c.is_control() => {
+                    app.add_to_search(c);
+                }
+                _ => {}
+            },
+            _ => {}
         }
     }
 }

@@ -34,14 +34,14 @@ fn cache_gitignore_repo() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let url = "https://github.com/github/gitignore/archive/refs/heads/main.zip";
     let cache_dir = dirs::cache_dir().ok_or("Could not find cache directory")?;
     let app_cache_dir = cache_dir.join("make-gitignore");
-	let extract_dir = cache_dir.join("gitignore-templates");
+    let extract_dir = cache_dir.join("gitignore-templates");
     // Ensure cache dir exists
     fs::create_dir_all(&app_cache_dir)?;
     let zip_path = app_cache_dir.join("gitignore-main.zip");
 
     // If we have a cached zip and a last_synced timestamp younger than 24h, reuse it
     let last_synced_path = app_cache_dir.join("last_synced");
-	
+
     let cache_exists = last_synced_path.exists() && zip_path.exists();
     let is_cache_fresh = check_last_synced(&last_synced_path);
     if cache_exists && is_cache_fresh {
@@ -100,18 +100,14 @@ fn scan_gitignore_templates(
             continue;
         }
 
-        // Check if filename ends with .gitignore
-        let filename = path.file_name().and_then(|n| n.to_str());
-        let is_gitignore = filename.map(|f| f.ends_with(".gitignore")).unwrap_or(false);
-        if is_gitignore {
-            // Extract language name (e.g., "Python" from "Python.gitignore")
-            let language = filename
-                .unwrap()
-                .strip_suffix(".gitignore")
-                .unwrap()
-                .to_string();
-            language_map.insert(language, path);
-        }
+        let filename = match path.file_name().and_then(|n| n.to_str()) {
+            Some(name) if name.ends_with(".gitignore") => name,
+            _ => continue,
+        };
+
+        // Extract language name (e.g., "Python" from "Python.gitignore")
+        let language = filename.strip_suffix(".gitignore").unwrap().to_string();
+        language_map.insert(language, path);
     }
 
     println!("Found {} gitignore templates", language_map.len());
@@ -197,10 +193,10 @@ fn main() {
         // Validate that all requested languages exist (case-insensitive)
         let mut invalid_languages = Vec::new();
         let mut validated_languages = Vec::new();
-        
+
         for lang in &languages {
             let matched = language_map.keys().find(|k| k.eq_ignore_ascii_case(lang));
-            
+
             if let Some(matched_key) = matched {
                 validated_languages.push(matched_key.clone());
             } else {

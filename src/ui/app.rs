@@ -56,7 +56,9 @@ impl App {
         let filtered = self.get_filtered_indices();
         if filtered.is_empty() {
             self.cursor_position = 0;
-        } else if self.cursor_position >= self.languages.len() || !filtered.contains(&self.cursor_position) {
+        } else if self.cursor_position >= self.languages.len()
+            || !filtered.contains(&self.cursor_position)
+        {
             // Current cursor is not in filtered list, move to first filtered item
             self.cursor_position = filtered[0];
         }
@@ -65,35 +67,26 @@ impl App {
 
     pub fn move_cursor_up(&mut self) {
         let filtered = self.get_filtered_indices();
-        if let Some(pos) = filtered.iter().position(|&i| i == self.cursor_position) {
-            if pos > 0 {
-                self.cursor_position = filtered[pos - 1];
-            }
-        }
+        filtered
+            .iter()
+            .position(|&i| i == self.cursor_position)
+            .and_then(|pos| pos.checked_sub(1))
+            .and_then(|prev_pos| filtered.get(prev_pos))
+            .map(|&idx| self.cursor_position = idx);
     }
 
     pub fn move_cursor_down(&mut self) {
         let filtered = self.get_filtered_indices();
-        if let Some(pos) = filtered.iter().position(|&i| i == self.cursor_position) {
-            if pos < filtered.len() - 1 {
-                self.cursor_position = filtered[pos + 1];
-            }
-        }
+        filtered
+            .iter()
+            .position(|&i| i == self.cursor_position)
+            .and_then(|pos| filtered.get(pos + 1))
+            .map(|&idx| self.cursor_position = idx);
     }
 
     pub fn toggle_selection(&mut self) {
-        if self.cursor_position < self.selected_indices.len() {
-            self.selected_indices[self.cursor_position] =
-                !self.selected_indices[self.cursor_position];
-        }
-    }
-
-    pub fn update_scroll(&mut self, visible_height: usize) {
-        // Ensure cursor is visible
-        if self.cursor_position < self.scroll_offset {
-            self.scroll_offset = self.cursor_position;
-        } else if self.cursor_position >= self.scroll_offset + visible_height {
-            self.scroll_offset = self.cursor_position - visible_height + 1;
-        }
+        self.selected_indices
+            .get_mut(self.cursor_position)
+            .map(|selected| *selected = !*selected);
     }
 }

@@ -43,15 +43,28 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     // Calculate visible area
     let list_height = (chunks[2].height as usize).saturating_sub(2);
-    app.update_scroll(list_height);
 
     // Get filtered languages
     let filtered_indices = app.get_filtered_indices();
     
+    // Find cursor position in filtered list
+    let cursor_in_filtered = filtered_indices.iter()
+        .position(|&i| i == app.cursor_position)
+        .unwrap_or(0);
+    
+    // Calculate scroll offset based on filtered list
+    let scroll_offset = if cursor_in_filtered < app.scroll_offset {
+        cursor_in_filtered
+    } else if cursor_in_filtered >= app.scroll_offset + list_height {
+        cursor_in_filtered.saturating_sub(list_height - 1)
+    } else {
+        app.scroll_offset
+    };
+
     // Language list
     let items: Vec<ListItem> = filtered_indices
         .iter()
-        .skip(app.scroll_offset)
+        .skip(scroll_offset)
         .take(list_height)
         .map(|&i| {
             let lang = &app.languages[i];

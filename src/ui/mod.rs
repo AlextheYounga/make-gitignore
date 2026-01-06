@@ -1,5 +1,5 @@
 mod app;
-mod render;
 mod events;
+mod render;
 
 pub use events::run_ui;
