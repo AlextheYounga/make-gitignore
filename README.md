@@ -1,6 +1,8 @@
-# make-gitignore
+# Gitignore CLI from Github's Official Repository
 
 A fast, interactive CLI tool for generating `.gitignore` files from GitHub's official [gitignore templates](https://github.com/github/gitignore).
+
+Inspired by [gitignore-it](https://github.com/christopherkade/gitignore-it)
 
 ## Features
 
@@ -17,11 +19,11 @@ A fast, interactive CLI tool for generating `.gitignore` files from GitHub's off
 
 ```bash
 git clone <repository-url>
-cd make-gitignore
+cd gitignore
 cargo build --release
 ```
 
-The binary will be available at `target/release/make-gitignore`.
+The binary will be available at `target/release/gitignore`.
 
 ### Install to PATH
 
@@ -36,7 +38,7 @@ cargo install --path .
 Simply run the command without arguments to launch the interactive TUI:
 
 ```bash
-make-gitignore
+gitignore
 ```
 
 **Controls:**
@@ -50,7 +52,7 @@ make-gitignore
 Pass languages directly via the `--languages` flag:
 
 ```bash
-make-gitignore --languages=Rust,Python,Node
+gitignore --languages=rust,python,node
 ```
 
 **Features:**
@@ -64,28 +66,28 @@ make-gitignore --languages=Rust,Python,Node
 
 ```bash
 # Interactive
-make-gitignore
+gitignore
 # Select "Python" → Creates .gitignore with Python rules
 
 # CLI
-make-gitignore --languages=Python
+gitignore --languages=python
 ```
 
 ### Multiple Languages
 
 ```bash
 # Interactive
-make-gitignore
+gitignore
 # Select "Rust", "Node", "VisualStudioCode" → Merges all templates
 
 # CLI
-make-gitignore --languages=Rust,Node,VisualStudioCode
+gitignore --languages=rust,node,visualstudiocode
 ```
 
 ### Case Insensitive
 
 ```bash
-make-gitignore --languages=rust,PYTHON,node
+gitignore --languages=rust,PYTHON,node
 # Matches: Rust, Python, Node
 ```
 
