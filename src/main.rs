@@ -9,6 +9,36 @@ use zip::ZipArchive;
 
 mod ui;
 
+const GENERAL_IGNORE_LINES: &[&str] = &[
+    ".DS_Store",
+    "*DS_Store",
+    "Thumbs.db",
+    "Desktop.ini",
+    "*.db",
+    "*.sqlite",
+    "*.sqlite3",
+    "__trash__",
+    ".Trashes",
+    "*.log",
+    "*.tmp",
+    "*.temp",
+    "*.bak",
+    "*~",
+    "*.swp",
+    "*.swo",
+];
+
+fn append_general_ignores(output_file: &mut File) -> std::io::Result<()> {
+    writeln!(output_file)?;
+    writeln!(output_file, "# General")?;
+
+    for line in GENERAL_IGNORE_LINES {
+        writeln!(output_file, "{}", line)?;
+    }
+
+    Ok(())
+}
+
 #[derive(Parser)]
 #[command(name = "gitignore")]
 #[command(about = "Generate .gitignore files from templates", long_about = None)]
@@ -123,38 +153,33 @@ fn write_gitignore(
         return Err("No languages selected".into());
     }
 
-    if selected_languages.len() == 1 {
-        // Single selection: just copy the file
-        let language = &selected_languages[0];
+    // Always create .gitignore by appending templates in order, preserving formatting.
+    let mut output_file = File::create(output_path)?;
+
+    for (idx, language) in selected_languages.iter().enumerate() {
         let source_path = language_map
             .get(language)
             .ok_or(format!("Language '{}' not found", language))?;
 
-        fs::copy(source_path, output_path)?;
-        println!("✓ Created .gitignore for {}", language);
-    } else {
-        // Multiple selections: append files together in order, preserving formatting.
-        let mut output_file = File::create(output_path)?;
-
-        for (idx, language) in selected_languages.iter().enumerate() {
-            let source_path = language_map
-                .get(language)
-                .ok_or(format!("Language '{}' not found", language))?;
-
-            if idx > 0 {
-                // Ensure a blank line between templates.
-                writeln!(output_file)?;
-            }
-
-            let contents = fs::read_to_string(source_path)?;
-            output_file.write_all(contents.as_bytes())?;
-
-            // Ensure each appended template ends with a newline.
-            if !contents.ends_with('\n') {
-                writeln!(output_file)?;
-            }
+        if idx > 0 {
+            // Ensure a blank line between templates.
+            writeln!(output_file)?;
         }
 
+        let contents = fs::read_to_string(source_path)?;
+        output_file.write_all(contents.as_bytes())?;
+
+        // Ensure each appended template ends with a newline.
+        if !contents.ends_with('\n') {
+            writeln!(output_file)?;
+        }
+    }
+
+    append_general_ignores(&mut output_file)?;
+
+    if selected_languages.len() == 1 {
+        println!("✓ Created .gitignore for {}", selected_languages[0]);
+    } else {
         println!(
             "✓ Created .gitignore by appending {} templates",
             selected_languages.len()

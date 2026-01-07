@@ -9,9 +9,10 @@ Inspired by [gitignore-it](https://github.com/christopherkade/gitignore-it)
 - 🎨 **Interactive TUI** - Beautiful terminal UI with multi-select capabilities
 - ⚡ **CLI Mode** - Pass languages as arguments for scripting and automation
 - 🔄 **Smart Caching** - Downloads templates once, caches for 24 hours
-- 🔀 **Multi-Language Support** - Combine multiple `.gitignore` templates with automatic deduplication
+- 🔀 **Multi-Language Support** - Append multiple `.gitignore` templates together (preserves template formatting)
 - 🔍 **Case-Insensitive** - Enter language names in any case (rust, Rust, RUST)
 - 📦 **No Dependencies** - Self-contained binary, no runtime requirements
+- 🧹 **General Ignores** - Always appends common OS/temp/log/editor junk patterns
 
 ## Installation
 
@@ -98,8 +99,9 @@ gitignore --languages=rust,PYTHON,node
 3. **Scan** - Indexes all `.gitignore` templates by language name
 4. **Select** - Interactive UI or CLI arguments
 5. **Generate** - Creates `.gitignore` in your current directory
-   - **Single selection**: Copies the template directly
-   - **Multiple selections**: Merges templates with deduplication
+   - **Single selection**: Appends the template
+   - **Multiple selections**: Appends templates in order
+   - Always appends a small set of general ignore patterns (e.g. `.DS_Store`, `*.sqlite`)
 
 ## Cache Location
 
