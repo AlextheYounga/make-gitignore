@@ -18,8 +18,8 @@ Inspired by [gitignore-it](https://github.com/christopherkade/gitignore-it)
 ### From Source
 
 ```bash
-git clone <repository-url>
-cd gitignore
+git clone https://github.com/AlextheYounga/make-gitignore
+cd make-gitignore
 cargo build --release
 ```
 
