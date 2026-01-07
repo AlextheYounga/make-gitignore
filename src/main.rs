@@ -1,8 +1,8 @@
 use clap::Parser;
 use reqwest;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{BufRead, BufReader, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zip::ZipArchive;
@@ -133,35 +133,30 @@ fn write_gitignore(
         fs::copy(source_path, output_path)?;
         println!("✓ Created .gitignore for {}", language);
     } else {
-        // Multiple selections: merge and deduplicate
-        let mut all_lines = HashSet::new();
+        // Multiple selections: append files together in order, preserving formatting.
+        let mut output_file = File::create(output_path)?;
 
-        for language in selected_languages {
+        for (idx, language) in selected_languages.iter().enumerate() {
             let source_path = language_map
                 .get(language)
                 .ok_or(format!("Language '{}' not found", language))?;
 
-            let file = File::open(source_path)?;
-            let reader = BufReader::new(file);
+            if idx > 0 {
+                // Ensure a blank line between templates.
+                writeln!(output_file)?;
+            }
 
-            for line in reader.lines() {
-                let line = line?;
-                all_lines.insert(line);
+            let contents = fs::read_to_string(source_path)?;
+            output_file.write_all(contents.as_bytes())?;
+
+            // Ensure each appended template ends with a newline.
+            if !contents.ends_with('\n') {
+                writeln!(output_file)?;
             }
         }
 
-        // Convert to sorted vec for consistent output
-        let mut sorted_lines: Vec<_> = all_lines.into_iter().collect();
-        sorted_lines.sort();
-
-        // Write to output file
-        let mut output_file = File::create(output_path)?;
-        for line in sorted_lines {
-            writeln!(output_file, "{}", line)?;
-        }
-
         println!(
-            "✓ Created .gitignore combining {} languages",
+            "✓ Created .gitignore by appending {} templates",
             selected_languages.len()
         );
     }
