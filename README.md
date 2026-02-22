@@ -16,6 +16,14 @@ Inspired by [gitignore-it](https://github.com/christopherkade/gitignore-it)
 
 ## Installation
 
+
+### Install to PATH
+
+```bash
+cargo install --path .
+```
+
+
 ### From Source
 
 ```bash
@@ -25,12 +33,6 @@ cargo build --release
 ```
 
 The binary will be available at `target/release/gitignore`.
-
-### Install to PATH
-
-```bash
-cargo install --path .
-```
 
 ## Usage
 
