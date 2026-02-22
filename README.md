@@ -20,7 +20,7 @@ Inspired by [gitignore-it](https://github.com/christopherkade/gitignore-it)
 ### Install to PATH
 
 ```bash
-cargo install --path .
+cargo install --git https://github.com/AlextheYounga/make-gitignore make-gitignore
 ```
 
 
