@@ -49,15 +49,14 @@ struct Cli {
 }
 
 fn check_last_synced(last_synced_path: &PathBuf) -> bool {
-    let timestamp_secs = fs::read_to_string(&last_synced_path)
+    let timestamp_secs = fs::read_to_string(last_synced_path)
         .ok()
         .and_then(|s| s.trim().parse::<u64>().ok());
     let last_sync_time = timestamp_secs.map(|ts| UNIX_EPOCH + Duration::from_secs(ts));
-    let is_cache_fresh = last_sync_time
+    last_sync_time
         .and_then(|last| SystemTime::now().duration_since(last).ok())
         .map(|duration| duration.as_secs() < 24 * 3600)
-        .unwrap_or(false);
-    return is_cache_fresh;
+        .unwrap_or(false)
 }
 
 fn cache_gitignore_repo() -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -189,6 +188,43 @@ fn write_gitignore(
     Ok(())
 }
 
+fn validate_languages(
+    languages: &[String],
+    language_map: &HashMap<String, PathBuf>,
+) -> (Vec<String>, Vec<String>) {
+    let mut validated_languages = Vec::new();
+    let mut invalid_languages = Vec::new();
+
+    for lang in languages {
+        let matched = language_map.keys().find(|k| k.eq_ignore_ascii_case(lang));
+
+        if let Some(matched_key) = matched {
+            validated_languages.push(matched_key.clone());
+        } else {
+            invalid_languages.push(lang.clone());
+        }
+    }
+
+    (validated_languages, invalid_languages)
+}
+
+fn get_gitignore_path() -> PathBuf {
+    std::env::current_dir()
+        .expect("Failed to get current directory")
+        .join(".gitignore")
+}
+
+fn create_gitignore_and_print(
+    selected_languages: &[String],
+    language_map: &HashMap<String, PathBuf>,
+    output_path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    write_gitignore(selected_languages, language_map, output_path)?;
+    println!("Languages: {}", selected_languages.join(", "));
+    println!("Output: {:?}", output_path);
+    Ok(())
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -210,19 +246,8 @@ fn main() {
 
     // Handle CLI arguments if provided - exit early
     if let Some(languages) = cli.languages {
-        // Validate that all requested languages exist (case-insensitive)
-        let mut invalid_languages = Vec::new();
-        let mut validated_languages = Vec::new();
-
-        for lang in &languages {
-            let matched = language_map.keys().find(|k| k.eq_ignore_ascii_case(lang));
-
-            if let Some(matched_key) = matched {
-                validated_languages.push(matched_key.clone());
-            } else {
-                invalid_languages.push(lang.clone());
-            }
-        }
+        let (validated_languages, invalid_languages) =
+            validate_languages(&languages, &language_map);
 
         if !invalid_languages.is_empty() {
             eprintln!("Error: The following languages were not found:");
@@ -234,23 +259,12 @@ fn main() {
         }
 
         // Proceed with validated languages
-        let current_dir = std::env::current_dir().expect("Failed to get current directory");
-        let output_path = current_dir.join(".gitignore");
+        let output_path = get_gitignore_path();
 
-        if output_path.exists() {
-            eprintln!("Warning: .gitignore already exists in current directory!");
-            eprintln!("Operation cancelled to prevent overwriting.");
-            return;
-        }
-
-        match write_gitignore(&validated_languages, &language_map, &output_path) {
-            Ok(()) => {
-                println!("Languages: {}", validated_languages.join(", "));
-                println!("Output: {:?}", output_path);
-            }
-            Err(e) => {
-                eprintln!("Error writing .gitignore: {}", e);
-            }
+        if let Err(e) =
+            create_gitignore_and_print(&validated_languages, &language_map, &output_path)
+        {
+            eprintln!("Error writing .gitignore: {}", e);
         }
         return;
     }
@@ -281,22 +295,9 @@ fn main() {
     }
 
     // Get current directory and create .gitignore there
-    let current_dir = std::env::current_dir().expect("Failed to get current directory");
-    let output_path = current_dir.join(".gitignore");
+    let output_path = get_gitignore_path();
 
-    if output_path.exists() {
-        eprintln!("Warning: .gitignore already exists in current directory!");
-        eprintln!("Operation cancelled to prevent overwriting.");
-        return;
-    }
-
-    match write_gitignore(&selected, &language_map, &output_path) {
-        Ok(()) => {
-            println!("Languages: {}", selected.join(", "));
-            println!("Output: {:?}", output_path);
-        }
-        Err(e) => {
-            eprintln!("Error writing .gitignore: {}", e);
-        }
+    if let Err(e) = create_gitignore_and_print(&selected, &language_map, &output_path) {
+        eprintln!("Error writing .gitignore: {}", e);
     }
 }

@@ -1,11 +1,11 @@
 use ratatui::{
-    Terminal,
     backend::CrosstermBackend,
     crossterm::{
         event::{self, Event, KeyCode, KeyEventKind},
         execute,
-        terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     },
+    Terminal,
 };
 use std::io;
 

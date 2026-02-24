@@ -1,8 +1,8 @@
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
+    Frame,
 };
 
 use super::app::App;
@@ -46,12 +46,13 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     // Get filtered languages
     let filtered_indices = app.get_filtered_indices();
-    
+
     // Find cursor position in filtered list
-    let cursor_in_filtered = filtered_indices.iter()
+    let cursor_in_filtered = filtered_indices
+        .iter()
         .position(|&i| i == app.cursor_position)
         .unwrap_or(0);
-    
+
     // Calculate scroll offset based on filtered list
     let scroll_offset = if cursor_in_filtered < app.scroll_offset {
         cursor_in_filtered
