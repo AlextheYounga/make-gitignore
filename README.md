@@ -16,6 +16,11 @@ Inspired by [gitignore-it](https://github.com/christopherkade/gitignore-it)
 
 ## Installation
 
+### Install from [crates.io](https://crates.io/crates/make-gitignore)
+
+```bash
+cargo add gitignore
+```
 
 ### Install to PATH
 
