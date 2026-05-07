@@ -1,9 +1,9 @@
 use clap::Parser;
-use reqwest;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zip::ZipArchive;
 
@@ -27,6 +27,19 @@ const GENERAL_IGNORE_LINES: &[&str] = &[
     "*.swp",
     "*.swo",
 ];
+
+const GITIGNORE_ARCHIVE_URL: &str =
+    "https://github.com/github/gitignore/archive/refs/heads/main.zip";
+
+type LanguageMap = HashMap<String, String>;
+
+#[derive(Clone)]
+struct CachePaths {
+    app_cache_dir: PathBuf,
+    extract_dir: PathBuf,
+    zip_path: PathBuf,
+    last_synced_path: PathBuf,
+}
 
 fn append_general_ignores(output_file: &mut File) -> std::io::Result<()> {
     writeln!(output_file)?;
@@ -59,40 +72,85 @@ fn check_last_synced(last_synced_path: &PathBuf) -> bool {
         .unwrap_or(false)
 }
 
-fn cache_gitignore_repo() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let url = "https://github.com/github/gitignore/archive/refs/heads/main.zip";
+fn cache_paths() -> Result<CachePaths, Box<dyn std::error::Error>> {
     let cache_dir = dirs::cache_dir().ok_or("Could not find cache directory")?;
     let app_cache_dir = cache_dir.join("make-gitignore");
     let extract_dir = cache_dir.join("gitignore-templates");
-    // Ensure cache dir exists
     fs::create_dir_all(&app_cache_dir)?;
-    let zip_path = app_cache_dir.join("gitignore-main.zip");
 
-    // If we have a cached zip and a last_synced timestamp younger than 24h, reuse it
-    let last_synced_path = app_cache_dir.join("last_synced");
+    Ok(CachePaths {
+        zip_path: app_cache_dir.join("gitignore-main.zip"),
+        last_synced_path: app_cache_dir.join("last_synced"),
+        app_cache_dir,
+        extract_dir,
+    })
+}
 
-    let cache_exists = last_synced_path.exists() && zip_path.exists();
-    let is_cache_fresh = check_last_synced(&last_synced_path);
-    if cache_exists && is_cache_fresh {
-        println!("Using cached gitignore archive: {:?}", extract_dir);
-        return Ok(extract_dir);
+fn has_cached_templates(paths: &CachePaths) -> bool {
+    paths.extract_dir.join("gitignore-main").is_dir()
+}
+
+fn download_gitignore_archive(zip_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let bytes = reqwest::blocking::get(GITIGNORE_ARCHIVE_URL)?.bytes()?;
+    let mut file = File::create(zip_path)?;
+    file.write_all(&bytes)?;
+
+    Ok(())
+}
+
+fn replace_extracted_repo(
+    zip_path: &Path,
+    extract_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let staging_dir = extract_dir.with_extension("next");
+    let backup_dir = extract_dir.with_extension("old");
+
+    if staging_dir.exists() {
+        fs::remove_dir_all(&staging_dir)?;
+    }
+    if backup_dir.exists() {
+        fs::remove_dir_all(&backup_dir)?;
     }
 
-    // Otherwise download and update the timestamp
-    let bytes = reqwest::blocking::get(url)?.bytes()?;
+    unzip_gitignore_repo(zip_path, staging_dir.clone())?;
 
-    // Save to cache directory
-    let mut file = File::create(&zip_path)?;
-    file.write_all(&bytes)?;
+    if extract_dir.exists() {
+        fs::rename(extract_dir, &backup_dir)?;
+    }
+    fs::rename(&staging_dir, extract_dir)?;
+
+    if backup_dir.exists() {
+        fs::remove_dir_all(&backup_dir)?;
+    }
+
+    Ok(())
+}
+
+fn refresh_gitignore_repo(paths: &CachePaths) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let temp_zip_path = paths.app_cache_dir.join("gitignore-main.zip.download");
+
+    download_gitignore_archive(&temp_zip_path)?;
+    replace_extracted_repo(&temp_zip_path, &paths.extract_dir)?;
+    fs::rename(&temp_zip_path, &paths.zip_path)?;
 
     // Write last_synced timestamp (seconds since UNIX_EPOCH)
     let now_secs = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-    fs::write(&last_synced_path, now_secs.to_string())?;
+    fs::write(&paths.last_synced_path, now_secs.to_string())?;
 
-    println!("Downloaded gitignore archive to: {:?}", zip_path);
+    println!("Downloaded gitignore archive to: {:?}", paths.zip_path);
 
-    let extract_dir = unzip_gitignore_repo(&zip_path, extract_dir)?;
-    Ok(extract_dir)
+    Ok(paths.extract_dir.clone())
+}
+
+fn cache_gitignore_repo() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let paths = cache_paths()?;
+
+    if has_cached_templates(&paths) && check_last_synced(&paths.last_synced_path) {
+        println!("Using cached gitignore archive: {:?}", paths.extract_dir);
+        return Ok(paths.extract_dir);
+    }
+
+    refresh_gitignore_repo(&paths)
 }
 
 fn unzip_gitignore_repo(
@@ -111,9 +169,7 @@ fn unzip_gitignore_repo(
     Ok(extract_dir)
 }
 
-fn scan_gitignore_templates(
-    extract_dir: &Path,
-) -> Result<HashMap<String, PathBuf>, Box<dyn std::error::Error>> {
+fn scan_gitignore_templates(extract_dir: &Path) -> Result<LanguageMap, Box<dyn std::error::Error>> {
     // The extracted directory will be gitignore-templates/gitignore-main/
     let repo_root = extract_dir.join("gitignore-main");
 
@@ -136,7 +192,7 @@ fn scan_gitignore_templates(
 
         // Extract language name (e.g., "Python" from "Python.gitignore")
         let language = filename.strip_suffix(".gitignore").unwrap().to_string();
-        language_map.insert(language, path);
+        language_map.insert(language, fs::read_to_string(path)?);
     }
 
     println!("Found {} gitignore templates", language_map.len());
@@ -145,7 +201,7 @@ fn scan_gitignore_templates(
 
 fn write_gitignore(
     selected_languages: &[String],
-    language_map: &HashMap<String, PathBuf>,
+    language_map: &LanguageMap,
     output_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if selected_languages.is_empty() {
@@ -156,7 +212,7 @@ fn write_gitignore(
     let mut output_file = File::create(output_path)?;
 
     for (idx, language) in selected_languages.iter().enumerate() {
-        let source_path = language_map
+        let contents = language_map
             .get(language)
             .ok_or(format!("Language '{}' not found", language))?;
 
@@ -165,7 +221,6 @@ fn write_gitignore(
             writeln!(output_file)?;
         }
 
-        let contents = fs::read_to_string(source_path)?;
         output_file.write_all(contents.as_bytes())?;
 
         // Ensure each appended template ends with a newline.
@@ -190,7 +245,7 @@ fn write_gitignore(
 
 fn validate_languages(
     languages: &[String],
-    language_map: &HashMap<String, PathBuf>,
+    language_map: &LanguageMap,
 ) -> (Vec<String>, Vec<String>) {
     let mut validated_languages = Vec::new();
     let mut invalid_languages = Vec::new();
@@ -216,7 +271,7 @@ fn get_gitignore_path() -> PathBuf {
 
 fn create_gitignore_and_print(
     selected_languages: &[String],
-    language_map: &HashMap<String, PathBuf>,
+    language_map: &LanguageMap,
     output_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     write_gitignore(selected_languages, language_map, output_path)?;
@@ -228,24 +283,23 @@ fn create_gitignore_and_print(
 fn main() {
     let cli = Cli::parse();
 
-    let cache_dir = match cache_gitignore_repo() {
-        Ok(path) => path,
-        Err(e) => {
-            eprintln!("Error downloading archive: {}", e);
-            return;
-        }
-    };
-
-    let language_map = match scan_gitignore_templates(&cache_dir) {
-        Ok(map) => map,
-        Err(e) => {
-            eprintln!("Error scanning templates: {}", e);
-            return;
-        }
-    };
-
-    // Handle CLI arguments if provided - exit early
     if let Some(languages) = cli.languages {
+        let cache_dir = match cache_gitignore_repo() {
+            Ok(path) => path,
+            Err(e) => {
+                eprintln!("Error downloading archive: {}", e);
+                return;
+            }
+        };
+
+        let language_map = match scan_gitignore_templates(&cache_dir) {
+            Ok(map) => map,
+            Err(e) => {
+                eprintln!("Error scanning templates: {}", e);
+                return;
+            }
+        };
+
         let (validated_languages, invalid_languages) =
             validate_languages(&languages, &language_map);
 
@@ -258,7 +312,6 @@ fn main() {
             return;
         }
 
-        // Proceed with validated languages
         let output_path = get_gitignore_path();
 
         if let Err(e) =
@@ -269,7 +322,49 @@ fn main() {
         return;
     }
 
-    // No arguments provided - run the UI
+    let cache_paths = match cache_paths() {
+        Ok(path) => path,
+        Err(e) => {
+            eprintln!("Error preparing cache directory: {}", e);
+            return;
+        }
+    };
+
+    let needs_background_refresh = if has_cached_templates(&cache_paths) {
+        !check_last_synced(&cache_paths.last_synced_path)
+    } else {
+        false
+    };
+
+    let cache_dir = if has_cached_templates(&cache_paths) {
+        cache_paths.extract_dir.clone()
+    } else {
+        match refresh_gitignore_repo(&cache_paths) {
+            Ok(path) => path,
+            Err(e) => {
+                eprintln!("Error downloading archive: {}", e);
+                return;
+            }
+        }
+    };
+
+    let language_map = match scan_gitignore_templates(&cache_dir) {
+        Ok(map) => map,
+        Err(e) => {
+            eprintln!("Error scanning templates: {}", e);
+            return;
+        }
+    };
+
+    if needs_background_refresh {
+        let refresh_paths = cache_paths.clone();
+        thread::spawn(move || {
+            if let Err(e) = refresh_gitignore_repo(&refresh_paths) {
+                eprintln!("Background cache refresh failed: {}", e);
+            }
+        });
+    }
+
     let languages: Vec<String> = language_map.keys().cloned().collect();
 
     if languages.is_empty() {

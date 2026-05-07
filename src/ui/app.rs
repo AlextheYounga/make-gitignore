@@ -67,26 +67,30 @@ impl App {
 
     pub fn move_cursor_up(&mut self) {
         let filtered = self.get_filtered_indices();
-        filtered
+        if let Some(&idx) = filtered
             .iter()
             .position(|&i| i == self.cursor_position)
             .and_then(|pos| pos.checked_sub(1))
             .and_then(|prev_pos| filtered.get(prev_pos))
-            .map(|&idx| self.cursor_position = idx);
+        {
+            self.cursor_position = idx;
+        }
     }
 
     pub fn move_cursor_down(&mut self) {
         let filtered = self.get_filtered_indices();
-        filtered
+        if let Some(&idx) = filtered
             .iter()
             .position(|&i| i == self.cursor_position)
             .and_then(|pos| filtered.get(pos + 1))
-            .map(|&idx| self.cursor_position = idx);
+        {
+            self.cursor_position = idx;
+        }
     }
 
     pub fn toggle_selection(&mut self) {
-        self.selected_indices
-            .get_mut(self.cursor_position)
-            .map(|selected| *selected = !*selected);
+        if let Some(selected) = self.selected_indices.get_mut(self.cursor_position) {
+            *selected = !*selected;
+        }
     }
 }
