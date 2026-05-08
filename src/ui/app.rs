@@ -1,13 +1,23 @@
+use std::sync::{Arc, Mutex};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum FetchStatus {
+    Idle,
+    Fetching,
+    Fetched,
+}
+
 pub struct App {
     pub(super) languages: Vec<String>,
     pub(super) selected_indices: Vec<bool>,
     pub(super) cursor_position: usize,
     pub(super) scroll_offset: usize,
     pub(super) search_query: String,
+    fetch_status: Arc<Mutex<FetchStatus>>,
 }
 
 impl App {
-    pub fn new(mut languages: Vec<String>) -> Self {
+    pub fn new(mut languages: Vec<String>, fetch_status: Arc<Mutex<FetchStatus>>) -> Self {
         languages.sort();
         let len = languages.len();
         Self {
@@ -16,7 +26,12 @@ impl App {
             cursor_position: 0,
             scroll_offset: 0,
             search_query: String::new(),
+            fetch_status,
         }
+    }
+
+    pub fn fetch_status(&self) -> FetchStatus {
+        self.fetch_status.lock().map(|status| *status).unwrap_or(FetchStatus::Idle)
     }
 
     pub fn get_selected_languages(&self) -> Vec<String> {
@@ -56,9 +71,7 @@ impl App {
         let filtered = self.get_filtered_indices();
         if filtered.is_empty() {
             self.cursor_position = 0;
-        } else if self.cursor_position >= self.languages.len()
-            || !filtered.contains(&self.cursor_position)
-        {
+        } else if self.cursor_position >= self.languages.len() || !filtered.contains(&self.cursor_position) {
             // Current cursor is not in filtered list, move to first filtered item
             self.cursor_position = filtered[0];
         }
@@ -79,10 +92,8 @@ impl App {
 
     pub fn move_cursor_down(&mut self) {
         let filtered = self.get_filtered_indices();
-        if let Some(&idx) = filtered
-            .iter()
-            .position(|&i| i == self.cursor_position)
-            .and_then(|pos| filtered.get(pos + 1))
+        if let Some(&idx) =
+            filtered.iter().position(|&i| i == self.cursor_position).and_then(|pos| filtered.get(pos + 1))
         {
             self.cursor_position = idx;
         }

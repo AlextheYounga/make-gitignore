@@ -8,11 +8,13 @@ use ratatui::{
     },
 };
 use std::io;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-use super::app::App;
+use super::app::{App, FetchStatus};
 use super::render::ui;
 
-pub fn run_ui(languages: Vec<String>) -> io::Result<Option<Vec<String>>> {
+pub fn run_ui(languages: Vec<String>, fetch_status: Arc<Mutex<FetchStatus>>) -> io::Result<Option<Vec<String>>> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -20,7 +22,7 @@ pub fn run_ui(languages: Vec<String>) -> io::Result<Option<Vec<String>>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new(languages);
+    let mut app = App::new(languages, fetch_status);
     let result = run_app(&mut terminal, &mut app);
 
     // Restore terminal
@@ -31,12 +33,13 @@ pub fn run_ui(languages: Vec<String>) -> io::Result<Option<Vec<String>>> {
     result
 }
 
-fn run_app(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    app: &mut App,
-) -> io::Result<Option<Vec<String>>> {
+fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> io::Result<Option<Vec<String>>> {
     loop {
         terminal.draw(|f| ui(f, app))?;
+
+        if !event::poll(Duration::from_millis(100))? {
+            continue;
+        }
 
         match event::read()? {
             Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
